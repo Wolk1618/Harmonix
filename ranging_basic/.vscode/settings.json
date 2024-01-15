@@ -1,0 +1,8 @@
+{
+    "idf.portWin": "COM12",
+    "idf.adapterTargetName": "esp32s2",
+    "idf.openOcdConfigs": [
+        "board/esp32s2-bridge.cfg"
+    ],
+    "idf.flashType": "UART"
+}
