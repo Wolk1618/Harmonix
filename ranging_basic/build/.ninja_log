@@ -2099,3 +2099,13 @@
 95	586	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader/bootloader.elf	5d336f1ca8018915
 95	586	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader/bootloader.bin	5d336f1ca8018915
 95	586	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader/bootloader.map	5d336f1ca8018915
+101	318	0	esp-idf/esptool_py/CMakeFiles/app_check_size	b4d220fc6be50791
+101	318	0	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/esp-idf/esptool_py/CMakeFiles/app_check_size	b4d220fc6be50791
+90	437	7265213357052241	bootloader-prefix/src/bootloader-stamp/bootloader-build	5d336f1ca8018915
+90	437	7265213357052241	bootloader/bootloader.elf	5d336f1ca8018915
+90	437	7265213357052241	bootloader/bootloader.bin	5d336f1ca8018915
+90	437	7265213357052241	bootloader/bootloader.map	5d336f1ca8018915
+90	437	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader-prefix/src/bootloader-stamp/bootloader-build	5d336f1ca8018915
+90	437	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader/bootloader.elf	5d336f1ca8018915
+90	437	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader/bootloader.bin	5d336f1ca8018915
+90	437	7265213357052241	C:/Users/Utilizador/Documents/VL53L5CX-Library-master/examples/ranging_basic/build/bootloader/bootloader.map	5d336f1ca8018915

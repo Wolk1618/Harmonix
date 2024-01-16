@@ -103,22 +103,6 @@ void init_uart() {
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
-
-// Add a function to wait for acknowledgment
-bool waitForAck(uint32_t timeout) {
-    uint32_t start = millis();
-    while (millis() - start < timeout) {
-        if (uart_available(UART_NUM_1)) {
-            char c = uart_read(UART_NUM_1);
-            if (c == 'A') {  // Let's say 'A' is the acknowledgment character
-                printf("Ack Received!")
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 void app_main(void)
 {
     init_uart();
@@ -196,7 +180,7 @@ void app_main(void)
     status = vl53l5cx_start_ranging(&Dev);
 
     loop = 0;
-    while(loop < 2)
+    while(loop < 10)
     {
         /* Use polling function to know when a new measurement is ready.
          * Another way can be to wait for HW interrupt raised on PIN A1
@@ -221,20 +205,13 @@ void app_main(void)
 
                 // Send the formatted string over UART
                 uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
-                
-
-                // Wait for acknowledgment from Arduino
-                if (!waitForAck(1000)) {  // Wait for up to 5000 ms for acknowledgment
-                    printf("Error: Acknowledgment not received\n");
-                    // Handle the error, e.g., try to resend, skip, etc.
-                }
             }
             
             loop++;
         }
 
         // Wait before next measurement
-        WaitMs(&(Dev.platform), 5000);
+        WaitMs(&(Dev.platform), 1000);
     }
 
     status = vl53l5cx_stop_ranging(&Dev);
