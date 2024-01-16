@@ -1,0 +1,4 @@
+.vscode/
+esp_code/.vscode/
+esp_code/build/
+esp_code/managed_components/
