@@ -17,5 +17,8 @@ void setup() {
 void loop() {
   if (mySerial.available()) {
     Serial.write(mySerial.read());
+
+    // After processing the received data, send an acknowledgment back to ESP32
+    mySerial.write('A');  // 'A' signifies acknowledgment
   }
 }
