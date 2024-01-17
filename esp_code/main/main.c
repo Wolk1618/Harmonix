@@ -79,6 +79,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 #include "vl53l5cx_api.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -104,21 +105,12 @@ void init_uart() {
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
-
-// Add a function to wait for acknowledgment
-bool waitForAck(uint32_t timeout) {
-    //uint32_t start = clock();
-    /*
-    while (clock() - start < timeout) {
-        if (uart_available(UART_NUM_1)) {
-            char c = uart_read(UART_NUM_1);
-            if (c == 'A') {  // Let's say 'A' is the acknowledgment character
-                printf("Ack Received!");
-                return true;
-            }
-        }
-    }*/
-    return false;
+void printDistanceResults(const VL53L5CX_ResultsData *Results) {
+    printf("Distance values (mm): ");
+    for (int i = 0; i < 16; i++) {
+        printf("%d ", Results->distance_mm[i]);
+    }
+    printf("\n");
 }
 
 void app_main(void)
@@ -129,8 +121,8 @@ void app_main(void)
     i2c_port_t i2c_port = I2C_NUM_1;
     i2c_config_t i2c_config = {
             .mode = I2C_MODE_MASTER,
-            .sda_io_num = 1,
-            .scl_io_num = 2,
+            .sda_io_num = 6,
+            .scl_io_num = 7,
             .sda_pullup_en = GPIO_PULLUP_ENABLE,
             .scl_pullup_en = GPIO_PULLUP_ENABLE,
             .master.clk_speed = VL53L5CX_MAX_CLK_SPEED,
@@ -211,19 +203,27 @@ void app_main(void)
             vl53l5cx_get_ranging_data(&Dev, &Results);
 
              // Allocate buffer for UART data
-            char uart_buffer[64];
+            char uart_buffer[256];
 
             printf("Print data no : %3u\n", Dev.streamcount);
+            //printDistanceResults(&Results);
+            char stringData[1000];
+            char bufferString[10];
+
             for(i = 0; i < 16; i++)
             {
-                // Format the string to send over UART
-                snprintf(uart_buffer, sizeof(uart_buffer), "Zone : %3d, Distance : %4d mm\r\n",
-                         i,
-                         Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]);
-
-                // Send the formatted string over UART
-                uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
+                snprintf(bufferString, sizeof(bufferString), "%d", Results.distance_mm[i]);
+                strcat(stringData, bufferString);
+                strcat(stringData, "; ");
             }
+            strcat(stringData, "\n");
+
+            printf(stringData);
+
+            snprintf(uart_buffer, sizeof(uart_buffer), stringData, i, Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]);
+
+            // Send the formatted string over UART
+            uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));            
             
             loop++;
         }
