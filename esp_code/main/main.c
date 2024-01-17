@@ -1,136 +1,17 @@
-/*******************************************************************************
-* Copyright (c) 2020, STMicroelectronics - All Rights Reserved
-*
-* This file is part of the VL53L5CX Ultra Lite Driver and is dual licensed,
-* either 'STMicroelectronics Proprietary license'
-* or 'BSD 3-clause "New" or "Revised" License' , at your option.
-*
-********************************************************************************
-*
-* 'STMicroelectronics Proprietary license'
-*
-********************************************************************************
-*
-* License terms: STMicroelectronics Proprietary in accordance with licensing
-* terms at www.st.com/sla0081
-*
-* STMicroelectronics confidential
-* Reproduction and Communication of this document is strictly prohibited unless
-* specifically authorized in writing by STMicroelectronics.
-*
-*
-********************************************************************************
-*
-* Alternatively, the VL53L5CX Ultra Lite Driver may be distributed under the
-* terms of 'BSD 3-clause "New" or "Revised" License', in which case the
-* following provisions apply instead of the ones mentioned above :
-*
-********************************************************************************
-*
-* License terms: BSD 3-clause "New" or "Revised" License.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*
-* 1. Redistributions of source code must retain the above copyright notice, this
-* list of conditions and the following disclaimer.
-*
-* 2. Redistributions in binary form must reproduce the above copyright notice,
-* this list of conditions and the following disclaimer in the documentation
-* and/or other materials provided with the distribution.
-*
-* 3. Neither the name of the copyright holder nor the names of its contributors
-* may be used to endorse or promote products derived from this software
-* without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*
-*
-*******************************************************************************/
-
-/***********************************/
-/*   VL53L5CX ULD basic example    */
-/***********************************/
-/*
-* This example is the most basic. It initializes the VL53L5CX ULD, and starts
-* a ranging to capture 10 frames.
-*
-* By default, ULD is configured to have the following settings :
-* - Resolution 4x4
-* - Ranging period 1Hz
-*
-* In this example, we also suppose that the number of target per zone is
-* set to 1 , and all output are enabled (see file platform.h).
-*/
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <time.h>
 #include "vl53l5cx_api.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/uart.h"
-#include "string.h"
 
-#define TXD_PIN (20)
-#define RXD_PIN (21)
+#define VL53L5CX_DEFAULT_I2C_ADDRESS1 ((uint16_t)0x52)
 
-void init_uart() {
-    const uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_APB,
-    };
-    // Install UART driver, and get the queue.
-    uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0);
-    // Configure UART parameters
-    uart_param_config(UART_NUM_1, &uart_config);
-    uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-}
-
-
-// Add a function to wait for acknowledgment
-bool waitForAck(uint32_t timeout) {
-    //uint32_t start = clock();
-    /*
-    while (clock() - start < timeout) {
-        if (uart_available(UART_NUM_1)) {
-            char c = uart_read(UART_NUM_1);
-            if (c == 'A') {  // Let's say 'A' is the acknowledgment character
-                printf("Ack Received!");
-                return true;
-            }
-        }
-    }*/
-    return false;
-}
-
-void app_main(void)
-{
-    init_uart();
-    
-    //Define the i2c bus configuration
+void app_main(void){
     i2c_port_t i2c_port = I2C_NUM_1;
     i2c_config_t i2c_config = {
             .mode = I2C_MODE_MASTER,
-            .sda_io_num = 1,
-            .scl_io_num = 2,
+            .sda_io_num = 6,
+            .scl_io_num = 7,
             .sda_pullup_en = GPIO_PULLUP_ENABLE,
             .scl_pullup_en = GPIO_PULLUP_ENABLE,
             .master.clk_speed = VL53L5CX_MAX_CLK_SPEED,
@@ -144,19 +25,21 @@ void app_main(void)
     /*********************************/
 
     uint8_t 				status, loop, isAlive, isReady, i;
-    VL53L5CX_Configuration 	Dev;			/* Sensor configuration */
-    VL53L5CX_ResultsData 	Results;		/* Results data from VL53L5CX */
+    VL53L5CX_Configuration 	Dev, Dev2;			/* Sensor configuration */
+    VL53L5CX_ResultsData 	Results, Results2;		/* Results data from VL53L5CX */
 
-
-    /*********************************/
-    /*      Customer platform        */
-    /*********************************/
-
-    /* Fill the platform structure with customer's implementation. For this
-    * example, only the I2C address is used.
-    */
+    //vl53l5cx_set_i2c_address(&Dev, VL53L5CX_DEFAULT_I2C_ADDRESS1);
+    
     Dev.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS;
     Dev.platform.port = i2c_port;
+
+    // Initialize the second sensor (Dev2) with a new address
+    //Dev2.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS; // Temporarily use default address for initialization
+    Dev2.platform.port = i2c_port;
+
+    uint16_t new_address2 = 0x20; // New I2C address for Dev2
+    //vl53l5cx_set_i2c_address(&Dev2, new_address2);
+    Dev2.platform.address = new_address2; // Update the address in the device configuration
 
     /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
     //Reset_Sensor(&(Dev.platform));
@@ -187,7 +70,20 @@ void app_main(void)
         return;
     }
 
-    printf("VL53L5CX ULD ready ! (Version : %s)\n",
+    // Initialize the second sensor
+    status = vl53l5cx_is_alive(&Dev2, &isAlive);
+    if(!isAlive || status) {
+        printf("Second VL53L5CX not detected at requested address\n");
+        return;
+    }
+
+    status = vl53l5cx_init(&Dev2);
+    if(status) {
+        printf("Second VL53L5CX ULD Loading failed\n");
+        return;
+    }
+
+    printf("Both VL53L5CX ULD ready ! (Version : %s)\n",
            VL53L5CX_API_REVISION);
 
 
@@ -195,43 +91,66 @@ void app_main(void)
     /*         Ranging loop          */
     /*********************************/
 
+    // Start ranging for both sensors
     status = vl53l5cx_start_ranging(&Dev);
+    if(status) {
+        printf("Failed to start ranging on the first sensor\n");
+        return;
+    }
+
+    status = vl53l5cx_start_ranging(&Dev2);
+    if(status) {
+        printf("Failed to start ranging on the second sensor\n");
+        return;
+    }
 
     loop = 0;
-    while(loop < 10)
-    {
-        /* Use polling function to know when a new measurement is ready.
-         * Another way can be to wait for HW interrupt raised on PIN A1
-         * (INT) when a new measurement is ready */
-
+    while(loop < 10) {
+        // Check data ready for the first sensor
         status = vl53l5cx_check_data_ready(&Dev, &isReady);
-
-        if(isReady)
-        {
+        if(isReady) {
             vl53l5cx_get_ranging_data(&Dev, &Results);
-
-             // Allocate buffer for UART data
-            char uart_buffer[64];
-
-            printf("Print data no : %3u\n", Dev.streamcount);
-            for(i = 0; i < 16; i++)
-            {
-                // Format the string to send over UART
-                snprintf(uart_buffer, sizeof(uart_buffer), "Zone : %3d, Distance : %4d mm\r\n",
-                         i,
-                         Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]);
-
-                // Send the formatted string over UART
-                uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
+            printf("First sensor data no: %3u\n", Dev.streamcount);
+            for(i = 0; i < 16; i++) {
+                printf("Zone: %3d, Status: %3u, Distance: %4d mm\n",
+                       i,
+                       Results.target_status[VL53L5CX_NB_TARGET_PER_ZONE * i],
+                       Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE * i]);
             }
-            
-            loop++;
+            printf("\n");
         }
 
-        // Wait before next measurement
-        WaitMs(&(Dev.platform), 1000);
+        // Check data ready for the second sensor
+        status = vl53l5cx_check_data_ready(&Dev2, &isReady);
+        if(isReady) {
+            vl53l5cx_get_ranging_data(&Dev2, &Results2);
+            printf("Second sensor data no: %3u\n", Dev2.streamcount);
+            for(i = 0; i < 16; i++) {
+                printf("Zone: %3d, Status: %3u, Distance: %4d mm\n",
+                       i,
+                       Results2.target_status[VL53L5CX_NB_TARGET_PER_ZONE * i],
+                       Results2.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE * i]);
+            }
+            printf("\n");
+        }
+
+        // Wait a few ms to avoid too high polling
+        WaitMs(&(Dev.platform), 5);
+        WaitMs(&(Dev2.platform), 5);
+
+        loop++;
+        
     }
 
     status = vl53l5cx_stop_ranging(&Dev);
-    printf("End of ULD demo\n");
+    if(status) {
+        printf("Failed to stop ranging on the first sensor\n");
+    }
+
+    status = vl53l5cx_stop_ranging(&Dev2);
+    if(status) {
+        printf("Failed to ranging on the second sensor\n");
+    }
+
+    printf("End of ULD demo for both sensors\n");
 }
