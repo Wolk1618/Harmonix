@@ -138,7 +138,7 @@ void app_main(void)
     }
 
     loop = 0;
-    while(loop < 10) {
+    while(loop < 4) {
 
         printf("Batch number : %d\n", loop);
         char uart_buffer[256];
@@ -175,8 +175,10 @@ void app_main(void)
         }
         strcat(stringData, "\n");
 
+        printf(stringData);
+
         // Send the formatted string over UART
-        snprintf(uart_buffer, sizeof(uart_buffer), stringData, i, Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]);
+        snprintf(uart_buffer, sizeof(uart_buffer), stringData);
         uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));            
             
         // Wait a few ms to avoid too high polling
