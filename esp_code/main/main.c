@@ -64,27 +64,23 @@ void app_main(void)
     uint8_t 				status, loop, isAlive, isReady, i;
     VL53L5CX_Configuration 	Dev, Dev2;			/* Sensor configuration */
     VL53L5CX_ResultsData 	Results, Results2;		/* Results data from VL53L5CX */
-
-    //vl53l5cx_set_i2c_address(&Dev, VL53L5CX_DEFAULT_I2C_ADDRESS1);
     
     Dev.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS;
     Dev.platform.port = i2c_port;
 
     // Initialize the second sensor (Dev2) with a new address
     //Dev2.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS; // Temporarily use default address for initialization
-    Dev2.platform.port = i2c_port;
 
     uint16_t new_address2 = 0x20; // New I2C address for Dev2
     //vl53l5cx_set_i2c_address(&Dev2, new_address2);
     Dev2.platform.address = new_address2; // Update the address in the device configuration
-
+    Dev2.platform.port = i2c_port;
     /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
     //Reset_Sensor(&(Dev.platform));
 
     /* (Optional) Set a new I2C address if the wanted address is different
     * from the default one (filled with 0x20 for this example).
     */
-    //status = vl53l5cx_set_i2c_address(&Dev, 0x20);
 
 
     /*********************************/
