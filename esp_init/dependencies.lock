@@ -1,0 +1,15 @@
+dependencies:
+  idf:
+    component_hash: null
+    source:
+      type: idf
+    version: 5.1.2
+  rjrp44/vl53l5cx:
+    component_hash: 30ff636b21bf002c8bbcfc3d793e4296b07f83a64ab567dbd82e59148f24b4da
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 2.0.3
+manifest_hash: e7eda9a78079d8c182dd5ba608782792fd572a88b7b955b51dc0d02b5c46777e
+target: esp32s2
+version: 1.0.0
