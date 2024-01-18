@@ -2,3 +2,6 @@
 esp_code/.vscode/
 esp_code/build/
 esp_code/managed_components/
+esp_init/.vscode/
+esp_init/build/
+esp_init/managed_components/

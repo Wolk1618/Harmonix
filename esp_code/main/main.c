@@ -71,10 +71,11 @@ void app_main(void)
     // Initialize the second sensor (Dev2) with a new address
     //Dev2.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS; // Temporarily use default address for initialization
 
+    Dev2.platform.port = i2c_port;
     uint16_t new_address2 = 0x20; // New I2C address for Dev2
     //vl53l5cx_set_i2c_address(&Dev2, new_address2);
     Dev2.platform.address = new_address2; // Update the address in the device configuration
-    Dev2.platform.port = i2c_port;
+    
     /* (Optional) Reset sensor toggling PINs (see platform, not in API) */
     //Reset_Sensor(&(Dev.platform));
 
@@ -138,7 +139,7 @@ void app_main(void)
     }
 
     loop = 0;
-    while(loop < 10) {
+    while(loop < 4) {
 
         printf("Batch number : %d\n", loop);
         char uart_buffer[256];
