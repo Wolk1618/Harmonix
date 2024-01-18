@@ -5,6 +5,13 @@
 #include <time.h>
 #include <unistd.h>
 #include "vl53l5cx_api.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/uart.h"
+#include "string.h"
+
+#define TXD_PIN (20)
+#define RXD_PIN (21)
 
 #define VL53L5CX_DEFAULT_I2C_ADDRESS1 ((uint16_t)0x52)
 
