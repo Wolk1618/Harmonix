@@ -65,8 +65,6 @@ void app_main(void) {
     VL53L5CX_Configuration Dev, Dev2; // Sensor configuration
     VL53L5CX_ResultsData 	Results, Results2;
 
-    char previousData[1000] = "\n";
-    char previousData2[1000] = "\n";
 
     // Initialize the first sensor (Dev)
     Dev.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS;
@@ -111,6 +109,9 @@ void app_main(void) {
         return;
     }
 
+    vl53l5cx_set_resolution(&Dev,VL53L5CX_RESOLUTION_8X8);
+    vl53l5cx_set_resolution(&Dev2,VL53L5CX_RESOLUTION_8X8);
+
     printf("Both VL53L5CX ULD ready! Sensor1: %d Sensor2: %d (Version: %s)\n",Dev.platform.address,Dev2.platform.address, VL53L5CX_API_REVISION);
     
     // Start ranging for both sensors
@@ -128,73 +129,40 @@ void app_main(void) {
 
     loop = 0;
     char uart_buffer[1024];
-    while(loop < 8) {
-
-        //printf("Batch number : %d\n", loop);
-        char stringData[1000] = "";
-        char stringData2[1000] = "";
-        char bufferString[20];
-
-        // Fetching data for the first sensor
+    while(loop < 10) {
+        // Fetching and sending data for the first sensor
         status = vl53l5cx_check_data_ready(&Dev, &isReady);
         if(isReady) {
             vl53l5cx_get_ranging_data(&Dev, &Results);
 
-            // Formatting data from first sensor and concatenating it on one string
-            for(i = 0; i < 16; i++)
-            {
-                snprintf(bufferString, sizeof(bufferString), "%d", Results.distance_mm[i]);
-                strcat(stringData, bufferString);
-                strcat(stringData, "; ");
+            // Send each distance measurement in a separate chunk
+            for(i = 0; i < 64; i++) {
+                snprintf(uart_buffer, sizeof(uart_buffer), "A%d;", Results.distance_mm[i]);
+                uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
+                vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between chunks
             }
-            //strcat(stringData, "\n");
         }
 
-        // Fetching data for the second sensor
+        // Fetching and sending data for the second sensor
         status = vl53l5cx_check_data_ready(&Dev2, &isReady);
         if(isReady) {
             vl53l5cx_get_ranging_data(&Dev2, &Results2);
 
-            // Formatting data from second sensor and concatenating it on one string
-            for(i = 0; i < 16; i++)
-            {
-                snprintf(bufferString, sizeof(bufferString), "%d", Results2.distance_mm[i]);
-                strcat(stringData2, bufferString);
-                strcat(stringData2, "; ");
+            // Send each distance measurement in a separate chunk
+            for(i = 0; i < 64; i++) {
+                snprintf(uart_buffer, sizeof(uart_buffer), "B%d;", Results2.distance_mm[i]);
+                uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
+                vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between chunks
             }
-            strcat(stringData2, "\n");
         }
 
-        if(stringData[0] == '\0') {
-            strcpy(stringData, previousData);
-        } else {
-            strcpy(previousData, stringData);
-        }
-        if(stringData2[0] == '\0') {
-            strcpy(stringData2, previousData2);
-        } else {
-            strcpy(previousData2, stringData2);
-        }
-
-        /*printf("Sensor 1 :");
-        printf(stringData);
-        printf("Sensor 2 :");
-        printf(stringData2);*/
-
-        strcat(stringData, " - ");
-        strcat(stringData, stringData2);
-        printf(stringData);
-
-        // Send the formatted string over UART
-        snprintf(uart_buffer, sizeof(uart_buffer), stringData);
-        uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));            
-            
-        // Wait a few ms to avoid too high polling
-        WaitMs(&(Dev.platform), 100);
-        WaitMs(&(Dev2.platform), 100);
+        // Wait a bit before fetching new data to avoid too high polling
+        WaitMs(&(Dev.platform), 10);
+        WaitMs(&(Dev2.platform), 10);
 
         loop++;
     }
+
 
     status = vl53l5cx_stop_ranging(&Dev);
     if(status) {
