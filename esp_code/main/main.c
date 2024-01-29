@@ -140,6 +140,11 @@ void app_main(void) {
                 snprintf(uart_buffer, sizeof(uart_buffer), "A%d;", Results.distance_mm[i]);
                 uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
                 vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between chunks
+                /*
+                printf("SENSOR 1: Zone : %3d, Status : %3u, Distance : %4d mm\n",
+                       i,
+                       Results.target_status[VL53L5CX_NB_TARGET_PER_ZONE*i],
+                       Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]); */
             }
         }
 
@@ -153,6 +158,11 @@ void app_main(void) {
                 snprintf(uart_buffer, sizeof(uart_buffer), "B%d;", Results2.distance_mm[i]);
                 uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
                 vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between chunks
+                /*
+                printf("SENSOR 2: Zone : %3d, Status : %3u, Distance : %4d mm\n",
+                       i,
+                       Results2.target_status[VL53L5CX_NB_TARGET_PER_ZONE*i],
+                       Results2.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]); */
             }
         }
 

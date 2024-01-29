@@ -50,7 +50,7 @@ void printValues(int values[], int size, String label) {
 
     // After every 8 values, move to a new line to create the 8x8 grid
     if ((i + 1) % 8 == 0) {
-      Serial.println(); // Move to new line
+      //Serial.println(); // Move to new line
     }
   }
   Serial.println(); // Add an extra line for separation between batches or sensors
