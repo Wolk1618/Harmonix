@@ -14,9 +14,12 @@ int index1 = 0;
 int index2 = 0;
 
 
-void setup() {
+void setup(void) {
   Serial.begin(115200);
+  while (!Serial);
+
   mySerial.begin(115200);
+  while (!mySerial);
 
   Serial.println("Adafruit LSM6DS3TR-C tests");
   
@@ -37,12 +40,14 @@ void loop() {
   if (mySerial.available()) {
     String receivedChunk = mySerial.readStringUntil(';');
     processChunk(receivedChunk);
+
+    //readIMUData(imu1, "IMU 1");
+    //readIMUData(imu2, "IMU 2");
+
   }
 
-  readIMUData(imu1, "IMU 1");
-  readIMUData(imu2, "IMU 2");
-
-  delay(100); // Adjust the delay if needed
+  //delay(1000); // Adjust the delay if needed
+  
 }
 
 void readIMUData(Adafruit_LSM6DS3TRC& imu, const char* name) {
@@ -82,16 +87,22 @@ void processChunk(String chunk) {
     if (sensorID == 'A' && index1 < SIZE) {
       values1[index1++] = value;
       if (index1 == SIZE) {
-        printValues(values1, SIZE, "Sensor 1");
+        printValues(values1, SIZE, "TOF 1");
+        Serial.println();
+        readIMUData(imu1, "IMU 1");
         index1 = 0; // Reset for next batch
       }
     } else if (sensorID == 'B' && index2 < SIZE) {
       values2[index2++] = value;
       if (index2 == SIZE) {
-        printValues(values2, SIZE, "Sensor 2");
+        printValues(values2, SIZE, "TOF 2");
+        Serial.println();
+        readIMUData(imu2, "IMU 2");
         index2 = 0; // Reset for next batch
       }
     }
+  } else {
+    Serial.println("Empty");
   }
 }
 
@@ -103,7 +114,7 @@ void printValues(int values[], int size, String label) {
 
     // After every 8 values, move to a new line to create the 8x8 grid
     if ((i + 1) % 8 == 0) {
-      //Serial.println(); // Move to new line
+      Serial.println(); // Move to new line
     }
   }
   Serial.println(); // Add an extra line for separation between batches or sensors

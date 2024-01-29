@@ -129,7 +129,7 @@ void app_main(void) {
 
     loop = 0;
     char uart_buffer[1024];
-    while(loop < 10) {
+    while(1) {
         // Fetching and sending data for the first sensor
         status = vl53l5cx_check_data_ready(&Dev, &isReady);
         if(isReady) {
