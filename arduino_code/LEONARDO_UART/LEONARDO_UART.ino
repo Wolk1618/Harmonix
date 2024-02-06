@@ -18,7 +18,7 @@ void setup() {
   Serial.begin(115200);
   mySerial.begin(115200);
 
-  Serial.println("Adafruit LSM6DS3TR-C tests");
+  Serial.println("adafruit LSM6DS3TR-C tests");
   
   if (!imu1.begin_I2C(IMU1_I2C_ADDRESS)) {
     Serial.println("Failed to initialize IMU 1!");
@@ -39,10 +39,10 @@ void loop() {
     processChunk(receivedChunk);
   }
 
-  readIMUData(imu1, "IMU 1");
-  readIMUData(imu2, "IMU 2");
+  //readIMUData(imu1, "IMU 1"); // UNCOMMENT TO USE IMU
+  //readIMUData(imu2, "IMU 2");
 
-  delay(100); // Adjust the delay if needed
+  //delay(100); // Adjust the delay if needed
 }
 
 void readIMUData(Adafruit_LSM6DS3TRC& imu, const char* name) {
@@ -50,12 +50,9 @@ void readIMUData(Adafruit_LSM6DS3TRC& imu, const char* name) {
   imu.getEvent(&accel, &gyro, &temp);
   
   Serial.print(name);
-  Serial.print("\t\tTemperature ");
-  Serial.print(temp.temperature);
-  Serial.println(" deg C");
 
   /* Display the results (acceleration is measured in m/s^2) */
-  Serial.print("\t\tAccel X: ");
+  Serial.print("\t\taccel X: ");
   Serial.print(accel.acceleration.x);
   Serial.print(" \tY: ");
   Serial.print(accel.acceleration.y);

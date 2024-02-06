@@ -21,19 +21,23 @@ def read_and_print_sensor_data():
                 elif line == 'Sensor 1 Depth Map:':
                     print(line)
                     count = 1
-                    print(np.array(depth_values1))
+                    if depth_values1:
+                        depth_values1 = np.array(depth_values1).reshape((8,8))
+                    print(depth_values1)
                     depth_values1 = []
                 elif line == 'Sensor 2 Depth Map:':
                     print(line)
                     count = 2
-                    print(np.array(depth_values2))
+                    if depth_values2:
+                        depth_values2 = np.array(depth_values2).reshape((8,8))
+                    print(depth_values2)
                     depth_values2 = []
                 else:
                     values = [int(val) for val in line.split()]
                     if count == 1:
-                        depth_values1.append(values)
+                        depth_values1.extend(values)
                     else: 
-                        depth_values2.append(values)
+                        depth_values2.extend(values)
 
     except KeyboardInterrupt:
         print("Stopped by User")
