@@ -61,7 +61,7 @@ void app_main(void) {
     i2c_param_config(i2c_port, &i2c_config);
     i2c_driver_install(i2c_port, i2c_config.mode, 0, 0, 0);
 
-    uint8_t 				status, loop, isAlive, isReady, i;
+    uint8_t 				status, loop, isAlive, isReady, i, frequency_hz;
     VL53L5CX_Configuration Dev, Dev2; // Sensor configuration
     VL53L5CX_ResultsData 	Results, Results2;
 
@@ -111,9 +111,15 @@ void app_main(void) {
 
     vl53l5cx_set_resolution(&Dev,VL53L5CX_RESOLUTION_8X8);
     vl53l5cx_set_resolution(&Dev2,VL53L5CX_RESOLUTION_8X8);
-
+    vl53l5cx_set_ranging_frequency_hz(&Dev, 35);
+    vl53l5cx_set_ranging_frequency_hz(&Dev2, 35);
     printf("Both VL53L5CX ULD ready! Sensor1: %d Sensor2: %d (Version: %s)\n",Dev.platform.address,Dev2.platform.address, VL53L5CX_API_REVISION);
     
+    status = vl53l5cx_get_ranging_frequency_hz(&Dev, &frequency_hz);
+    printf("Ranging frequency 1: %u Hz\n", frequency_hz);
+
+    status = vl53l5cx_get_ranging_frequency_hz(&Dev2, &frequency_hz);
+    printf("Ranging frequency 2: %u Hz\n", frequency_hz);
     // Start ranging for both sensors
     status = vl53l5cx_start_ranging(&Dev);
     if(status) {
