@@ -22,7 +22,7 @@ void delay_500ms() {
 
 void init_uart() {
     const uart_config_t uart_config = {
-        .baud_rate = 115200,
+        .baud_rate = 19200,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -134,50 +134,57 @@ void app_main(void) {
     }
 
     loop = 0;
-    char uart_buffer[1024];
-    while(loop < 10) {
-        // Fetching and sending data for the first sensor
-        status = vl53l5cx_check_data_ready(&Dev, &isReady);
-        if(isReady) {
-            vl53l5cx_get_ranging_data(&Dev, &Results);
+    char uart_buffer[1024]; // Adjusted buffer size to hold all 64 measurements plus formatting
 
-            // Send each distance measurement in a separate chunk
-            for(i = 0; i < 64; i++) {
-                snprintf(uart_buffer, sizeof(uart_buffer), "A%d;", Results.distance_mm[i]);
-                uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
-                vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between chunks
-                /*
-                printf("SENSOR 1: Zone : %3d, Status : %3u, Distance : %4d mm\n",
-                       i,
-                       Results.target_status[VL53L5CX_NB_TARGET_PER_ZONE*i],
-                       Results.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]); */
-            }
+    while(loop < 100) {
+    // Fetching and sending data for the first sensor
+    status = vl53l5cx_check_data_ready(&Dev, &isReady);
+    if(isReady) {
+        vl53l5cx_get_ranging_data(&Dev, &Results);
+
+        int buf_index = 0; // Reset buffer index for the batch
+        // Start the batch with a sensor identifier
+        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "A");
+
+        for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
+            // Append measurement to the buffer
+            buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "%d;", Results.distance_mm[i]);
         }
+        // Append the stop character "Z" to the batch
+        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "Z;");
 
-        // Fetching and sending data for the second sensor
-        status = vl53l5cx_check_data_ready(&Dev2, &isReady);
-        if(isReady) {
-            vl53l5cx_get_ranging_data(&Dev2, &Results2);
-
-            // Send each distance measurement in a separate chunk
-            for(i = 0; i < 64; i++) {
-                snprintf(uart_buffer, sizeof(uart_buffer), "B%d;", Results2.distance_mm[i]);
-                uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));
-                vTaskDelay(pdMS_TO_TICKS(10)); // Small delay between chunks
-                /*
-                printf("SENSOR 2: Zone : %3d, Status : %3u, Distance : %4d mm\n",
-                       i,
-                       Results2.target_status[VL53L5CX_NB_TARGET_PER_ZONE*i],
-                       Results2.distance_mm[VL53L5CX_NB_TARGET_PER_ZONE*i]); */
-            }
-        }
-
-        // Wait a bit before fetching new data to avoid too high polling
-        WaitMs(&(Dev.platform), 10);
-        WaitMs(&(Dev2.platform), 10);
-
-        loop++;
+        // Send the entire batch
+        uart_write_bytes(UART_NUM_1, uart_buffer, buf_index);
+        vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
     }
+
+    // Repeat the process for the second sensor
+    status = vl53l5cx_check_data_ready(&Dev2, &isReady);
+    if(isReady) {
+        vl53l5cx_get_ranging_data(&Dev2, &Results2);
+
+        int buf_index = 0; // Reset buffer index for the batch
+        // Start the batch with a sensor identifier for the second sensor
+        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "B");
+
+        for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
+            // Append measurement to the buffer
+            buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "%d;", Results2.distance_mm[i]);
+        }
+        // Append the stop character "Z" to the batch
+        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "Z;");
+
+        // Send the entire batch
+        uart_write_bytes(UART_NUM_1, uart_buffer, buf_index);
+        vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
+    }
+
+    // Delay before fetching new data to avoid too high polling
+    WaitMs(&(Dev.platform), 70);
+    WaitMs(&(Dev2.platform), 70);
+
+    loop++;
+}
 
 
     status = vl53l5cx_stop_ranging(&Dev);

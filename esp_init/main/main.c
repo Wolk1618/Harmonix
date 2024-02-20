@@ -22,7 +22,7 @@ void delay_500ms() {
 
 void init_uart() {
     const uart_config_t uart_config = {
-        .baud_rate = 115200,
+        .baud_rate = 19200,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -38,7 +38,7 @@ void init_uart() {
 
 void app_main(void) {
 
-    init_uart();
+    //init_uart();
     // Define the i2c bus configuration
     i2c_port_t i2c_port = I2C_NUM_1;
     i2c_config_t i2c_config = {
@@ -61,12 +61,10 @@ void app_main(void) {
     i2c_param_config(i2c_port, &i2c_config);
     i2c_driver_install(i2c_port, i2c_config.mode, 0, 0, 0);
 
-    uint8_t 				status, loop, isAlive, isReady, i;
+    uint8_t 				status, loop, isAlive, isReady, i, frequency_hz;
     VL53L5CX_Configuration Dev, Dev2; // Sensor configuration
     VL53L5CX_ResultsData 	Results, Results2;
 
-    char previousData[1000] = "\n";
-    char previousData2[1000] = "\n";
 
     // Initialize the first sensor (Dev)
     Dev.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS;
@@ -111,8 +109,17 @@ void app_main(void) {
         return;
     }
 
+    vl53l5cx_set_resolution(&Dev,VL53L5CX_RESOLUTION_8X8);
+    vl53l5cx_set_resolution(&Dev2,VL53L5CX_RESOLUTION_8X8);
+    vl53l5cx_set_ranging_frequency_hz(&Dev, 52);
+    vl53l5cx_set_ranging_frequency_hz(&Dev2, 52);
     printf("Both VL53L5CX ULD ready! Sensor1: %d Sensor2: %d (Version: %s)\n",Dev.platform.address,Dev2.platform.address, VL53L5CX_API_REVISION);
     
+    status = vl53l5cx_get_ranging_frequency_hz(&Dev, &frequency_hz);
+    printf("Ranging frequency 1: %u Hz\n", frequency_hz);
+
+    status = vl53l5cx_get_ranging_frequency_hz(&Dev2, &frequency_hz);
+    printf("Ranging frequency 2: %u Hz\n", frequency_hz);
     // Start ranging for both sensors
     status = vl53l5cx_start_ranging(&Dev);
     if(status) {
@@ -127,74 +134,46 @@ void app_main(void) {
     }
 
     loop = 0;
-    char uart_buffer[1024];
-    while(loop < 8) {
-
-        //printf("Batch number : %d\n", loop);
-        char stringData[1000] = "";
-        char stringData2[1000] = "";
-        char bufferString[20];
-
-        // Fetching data for the first sensor
+    while(loop < 250) {
+        // Fetching and sending data for the first sensor
         status = vl53l5cx_check_data_ready(&Dev, &isReady);
         if(isReady) {
             vl53l5cx_get_ranging_data(&Dev, &Results);
 
-            // Formatting data from first sensor and concatenating it on one string
-            for(i = 0; i < 16; i++)
-            {
-                snprintf(bufferString, sizeof(bufferString), "%d", Results.distance_mm[i]);
-                strcat(stringData, bufferString);
-                strcat(stringData, "; ");
+            printf("A"); // Start the batch with a sensor identifier for the first sensor
+
+            for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
+                printf("%d;", Results.distance_mm[i]); // Print each measurement to the serial monitor
             }
-            //strcat(stringData, "\n");
+
+            printf("Z;\n"); // Append the stop character "Z" and move to a new line
+
+            vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
         }
 
-        // Fetching data for the second sensor
+        // Repeat the process for the second sensor
         status = vl53l5cx_check_data_ready(&Dev2, &isReady);
         if(isReady) {
             vl53l5cx_get_ranging_data(&Dev2, &Results2);
 
-            // Formatting data from second sensor and concatenating it on one string
-            for(i = 0; i < 16; i++)
-            {
-                snprintf(bufferString, sizeof(bufferString), "%d", Results2.distance_mm[i]);
-                strcat(stringData2, bufferString);
-                strcat(stringData2, "; ");
+            printf("B"); // Start the batch with a sensor identifier for the second sensor
+
+            for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
+                printf("%d;", Results2.distance_mm[i]); // Print each measurement to the serial monitor
             }
-            strcat(stringData2, "\n");
+
+            printf("Z;\n"); // Append the stop character "Z" and move to a new line
+
+            vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
         }
 
-        if(stringData[0] == '\0') {
-            strcpy(stringData, previousData);
-        } else {
-            strcpy(previousData, stringData);
-        }
-        if(stringData2[0] == '\0') {
-            strcpy(stringData2, previousData2);
-        } else {
-            strcpy(previousData2, stringData2);
-        }
-
-        /*printf("Sensor 1 :");
-        printf(stringData);
-        printf("Sensor 2 :");
-        printf(stringData2);*/
-
-        strcat(stringData, " - ");
-        strcat(stringData, stringData2);
-        printf(stringData);
-
-        // Send the formatted string over UART
-        snprintf(uart_buffer, sizeof(uart_buffer), stringData);
-        uart_write_bytes(UART_NUM_1, uart_buffer, strlen(uart_buffer));            
-            
-        // Wait a few ms to avoid too high polling
-        WaitMs(&(Dev.platform), 100);
-        WaitMs(&(Dev2.platform), 100);
+        // Delay before fetching new data to avoid too high polling
+        WaitMs(&(Dev.platform), 30);
+        WaitMs(&(Dev2.platform), 30);
 
         loop++;
     }
+
 
     status = vl53l5cx_stop_ranging(&Dev);
     if(status) {
