@@ -133,8 +133,7 @@ void app_main(void) {
         return;
     }
 
-    loop = 0;
-    while(loop < 250) {
+    while(1) {
         // Fetching and sending data for the first sensor
         status = vl53l5cx_check_data_ready(&Dev, &isReady);
         if(isReady) {
@@ -171,7 +170,6 @@ void app_main(void) {
         WaitMs(&(Dev.platform), 30);
         WaitMs(&(Dev2.platform), 30);
 
-        loop++;
     }
 
 

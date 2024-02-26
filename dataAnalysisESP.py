@@ -46,9 +46,10 @@ def main():
         QApplication.processEvents()  # Ensure the app remains responsive
         if ser.in_waiting:
             line = ser.readline().decode().strip()
-            if "Ranging frequency 2: 52 Hz" in line:
-                looking_for_data = True
-            elif looking_for_data and line.startswith(('A', 'B')) and line.endswith('Z;'):
+            #if "Ranging frequency 2: 52 Hz" in line:
+            #    looking_for_data = True
+            looking_for_data = True
+            if looking_for_data and line.startswith(('A', 'B')) and line.endswith('Z;'):
                 matrix = process_data_line(line)
                 if line.startswith('A'):
                     update_plot(matrix, img1)
