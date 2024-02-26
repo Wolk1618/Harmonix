@@ -5,3 +5,4 @@ esp_code/managed_components/
 esp_init/.vscode/
 esp_init/build/
 esp_init/managed_components/
+output_data.json
