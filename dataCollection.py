@@ -109,20 +109,18 @@ def main():
 
         sensor_arduino = data_arduino.pop()
         sensor_esp = data_esp.pop()
+        raw_data = {
+            "TOF": data_esp.pop(),
+            "IMU": data_arduino.pop()
+        }
 
         if sensor_esp != sensor_arduino :
             print("Wrong order of sensors")
             keep_running = False
         elif(sensor_esp == 'A') :
-            data_right.append({
-                "TOF": data_esp.pop(),
-                "IMU": data_arduino.pop()
-            })
+            data_right.append(raw_data)
         else :
-            data_left.append({
-                "TOF": data_esp.pop(),
-                "IMU": data_arduino.pop()
-            })
+            data_left.append(raw_data)
 
         # Signal threads to stop
         if time.time() - start_time >= run_for_seconds :
