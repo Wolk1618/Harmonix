@@ -38,15 +38,14 @@ def arduino_read_from_port(serial_port):
             gyro_y = float(parts[7].split(": ")[1])
             gyro_z = float(parts[8].split(": ")[1].split(" ")[0])
 
-            data_arduino.append({
+            data_arduino.append([target, {
                 "accel_x": accel_x,
                 "accel_y": accel_y,
                 "accel_z": accel_z,
                 "gyro_x": gyro_x,
                 "gyro_y": gyro_y,
                 "gyro_z": gyro_z,
-            })
-            data_arduino.append(target)
+            }])
 
 
 # Function to read from serial port and write to a JSON file
@@ -70,10 +69,9 @@ def esp_read_from_port(serial_port):
             # Convert each substring to integer and create list of integers
             array = [int(x) for x in substrings if x != '']
 
-            data_esp.append({
+            data_esp.append([target, {
                 "depth_map": array,
-            })            
-            data_esp.append(target)
+            }])
 
 
 def main():
@@ -119,15 +117,11 @@ def main():
     #output_file = input("Enter the file in which you want the datapoint to be stored : ")
     timestamp = datetime.datetime.now().isoformat()
 
-    print(len(data_arduino))
-    print(len(data_esp))
+    for data_bite in data_esp :
+        raw_data[data_bite[0]]['TOF'].append(data_bite[1])
 
-    for _ in range(len(data_esp) // 2) :
-        sensor_arduino = data_arduino.pop()
-        sensor_esp = data_esp.pop()
-
-        raw_data[str(sensor_arduino)]['IMU'].append(data_arduino.pop())
-        raw_data[str(sensor_esp)]['TOF'].append(data_esp.pop())
+    for data_bite in data_arduino :
+        raw_data[data_bite[0]]['IMU'].append(data_bite[1])
 
     json_to_write = {
         "timestamp": timestamp,
