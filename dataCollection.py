@@ -6,7 +6,7 @@ import datetime
 
 arduino_com = '/dev/ttyACM0'
 esp_com = '/dev/ttyUSB0'
-output_file = "output_data.json" 
+output_file = "seb_data.json" 
 run_for_seconds = 2  # Duration to run the threads
 label = 1
 keep_running = True
@@ -20,33 +20,17 @@ def arduino_read_from_port(serial_port):
     global data_arduino
     global data_esp
 
+    #serial_port.flushOutput()
+
     while keep_running:
         if serial_port.in_waiting:
 
             data = serial_port.readline().decode('utf-8').rstrip()
             #print(f"Data from {serial_port.port}: {data}")
 
-            # Prepare the data to write to the file
-            parts = data.split("\t")
-
-            # Extracting values using string manipulation
-            target = parts[0].split("IMU ")[1]
-            accel_x = float(parts[2].split(": ")[1])
-            accel_y = float(parts[3].split(": ")[1])
-            accel_z = float(parts[4].split(": ")[1])
-            gyro_x = float(parts[6].split(": ")[1])
-            gyro_y = float(parts[7].split(": ")[1])
-            gyro_z = float(parts[8].split(": ")[1].split(" ")[0])
-
-            data_arduino.append([target, {
-                "accel_x": accel_x,
-                "accel_y": accel_y,
-                "accel_z": accel_z,
-                "gyro_x": gyro_x,
-                "gyro_y": gyro_y,
-                "gyro_z": gyro_z,
-            }])
-
+            data_arduino.append(data)
+            
+    
 
 # Function to read from serial port and write to a JSON file
 def esp_read_from_port(serial_port):
@@ -54,24 +38,19 @@ def esp_read_from_port(serial_port):
     global data_arduino
     global data_esp
     
+    #serial_port.flushOutput()
+
     while keep_running:
         if serial_port.in_waiting:
-
+            
             # Prepare the data to write to the file
             data = serial_port.readline().decode('utf-8').rstrip()
-            target = data[0]
-            clean_data = data[1:-2]
-            #print(f"Data from {serial_port.port}: {clean_data}")
-
-            # Divide in substrings
-            substrings = clean_data.split(';')
-
-            # Convert each substring to integer and create list of integers
-            array = [int(x) for x in substrings if x != '']
-
-            data_esp.append([target, {
-                "depth_map": array,
-            }])
+            if data[0] != 'A' and data[0] != 'B' :
+                data = serial_port.readline().decode('utf-8').rstrip()
+            
+            print(f"Data from {serial_port.port}: {data}")
+            
+            data_esp.append(data)
 
 
 def main():
@@ -96,6 +75,18 @@ def main():
     serial_port_arduino = serial.Serial((arduino_com), 9600, timeout=1)
     serial_port_esp = serial.Serial((esp_com), 115200, timeout=1)
 
+    
+    print("Data collection will start in :")
+    time.sleep(0.5)
+    print("3")
+    time.sleep(0.5)
+    print("2")
+    time.sleep(0.5)
+    print("1")
+    time.sleep(0.5)
+    print("\nData collection started\n")
+    
+
     # Create threads for each COM port
     thread_arduino = threading.Thread(target=arduino_read_from_port, args=(serial_port_arduino, ))
     thread_esp = threading.Thread(target=esp_read_from_port, args=(serial_port_esp, ))
@@ -112,16 +103,57 @@ def main():
     thread_arduino.join()
     thread_esp.join()
 
-    print("Data collection completed.")
-    label = int(input("Enter the label of the recorded sample : "))
-    #output_file = input("Enter the file in which you want the datapoint to be stored : ")
-    timestamp = datetime.datetime.now().isoformat()
+    print("\nData collection completed.\n")
 
     for data_bite in data_esp :
-        raw_data[data_bite[0]]['TOF'].append(data_bite[1])
+
+        target = data_bite[0]
+        clean_data = data_bite[1:-2]
+        containsA = clean_data.count('A')
+        containsB = clean_data.count('B')
+        
+        if containsA :
+            target = 'A'
+            clean_data = clean_data.split('A')[1]
+            print('flushed')
+        elif containsB :
+            target = 'B'
+            clean_data = clean_data.split('B')[1] 
+            print('flushed')        
+        
+        # Divide in substrings and convert each substring to integer
+        substrings = clean_data.split(';')
+        array = [int(x) for x in substrings if x != '']
+
+        raw_data[target]['TOF'].append({
+            "depth_map": array,
+        })
 
     for data_bite in data_arduino :
-        raw_data[data_bite[0]]['IMU'].append(data_bite[1])
+
+        parts = data_bite.split("\t")
+
+        # Extracting values using string manipulation
+        target = parts[0].split("IMU ")[1]
+        accel_x = float(parts[2].split(": ")[1])
+        accel_y = float(parts[3].split(": ")[1])
+        accel_z = float(parts[4].split(": ")[1])
+        gyro_x = float(parts[6].split(": ")[1])
+        gyro_y = float(parts[7].split(": ")[1])
+        gyro_z = float(parts[8].split(": ")[1].split(" ")[0])
+
+        raw_data[target]['IMU'].append({
+            "accel_x": accel_x,
+            "accel_y": accel_y,
+            "accel_z": accel_z,
+            "gyro_x": gyro_x,
+            "gyro_y": gyro_y,
+            "gyro_z": gyro_z,
+        })
+
+    #label = int(input("Enter the label of the recorded sample : "))
+    #output_file = input("Enter the file in which you want the datapoint to be stored : ")
+    timestamp = datetime.datetime.now().isoformat()
 
     json_to_write = {
         "timestamp": timestamp,

@@ -5,7 +5,8 @@ import pyqtgraph as pg
 from PyQt5.QtWidgets import QApplication  # If using PyQt5
 # from PySide2.QtWidgets import QApplication  # If using PySide2
 
-COM_PORT = 'COM12'  # Update with your actual COM port
+#COM_PORT = 'COM12'  # Update with your actual COM port
+COM_PORT = '/dev/ttyUSB0'
 BAUD_RATE = 115200
 
 # Initialize serial connection
