@@ -6,7 +6,7 @@ import datetime
 
 arduino_com = '/dev/ttyACM0'
 esp_com = '/dev/ttyUSB0'
-output_file = "seb_data.json" 
+output_file = "test.json" 
 run_for_seconds = 2  # Duration to run the threads
 label = 1
 keep_running = True
@@ -115,19 +115,22 @@ def main():
         if containsA :
             target = 'A'
             clean_data = clean_data.split('A')[1]
-            print('flushed')
+            print('overwrite flushed')
         elif containsB :
             target = 'B'
             clean_data = clean_data.split('B')[1] 
-            print('flushed')        
+            print('overwrite flushed')        
         
         # Divide in substrings and convert each substring to integer
         substrings = clean_data.split(';')
         array = [int(x) for x in substrings if x != '']
 
-        raw_data[target]['TOF'].append({
-            "depth_map": array,
-        })
+        if len(array) != 64 :
+            print('outlier flushed')
+        else :
+            raw_data[target]['TOF'].append({
+                "depth_map": array,
+            })
 
     for data_bite in data_arduino :
 
@@ -165,7 +168,7 @@ def main():
     # Write data to the JSON file
     with open(output_file, "a") as file:
         json.dump(json_to_write, file)
-        file.write("\n")  # Add newline for each JSON object
+        file.write(",\n")  # Add newline for each JSON object
 
 if __name__ == "__main__":
     main()
