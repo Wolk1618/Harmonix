@@ -6,3 +6,7 @@ esp_init/.vscode/
 esp_init/build/
 esp_init/managed_components/
 *.json
+animations/
+figures/
+legacy/
+data_collected/

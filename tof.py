@@ -4,7 +4,7 @@ import imageio.v2 as imageio
 import json
 
 # Open the JSON file for reading
-with open('ally_data.json', 'r') as file:
+with open('ally_2.json', 'r') as file:
     # Parse the JSON data
     entries = json.load(file)
 

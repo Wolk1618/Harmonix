@@ -6,9 +6,9 @@ import datetime
 
 arduino_com = '/dev/ttyACM0'
 esp_com = '/dev/ttyUSB0'
-output_file = "test.json" 
+output_file = "thomas.json" 
 run_for_seconds = 2  # Duration to run the threads
-label = 1
+label = 5
 keep_running = True
 data_arduino = []
 data_esp = []
@@ -20,7 +20,7 @@ def arduino_read_from_port(serial_port):
     global data_arduino
     global data_esp
 
-    #serial_port.flushOutput()
+    serial_port.flushInput()
 
     while keep_running:
         if serial_port.in_waiting:
@@ -38,7 +38,7 @@ def esp_read_from_port(serial_port):
     global data_arduino
     global data_esp
     
-    #serial_port.flushOutput()
+    serial_port.flushInput()
 
     while keep_running:
         if serial_port.in_waiting:
@@ -75,6 +75,9 @@ def main():
     serial_port_arduino = serial.Serial((arduino_com), 9600, timeout=1)
     serial_port_esp = serial.Serial((esp_com), 115200, timeout=1)
 
+    # Create threads for each COM port
+    thread_arduino = threading.Thread(target=arduino_read_from_port, args=(serial_port_arduino, ))
+    thread_esp = threading.Thread(target=esp_read_from_port, args=(serial_port_esp, ))
     
     print("Data collection will start in :")
     time.sleep(0.5)
@@ -86,10 +89,6 @@ def main():
     time.sleep(0.5)
     print("\nData collection started\n")
     
-
-    # Create threads for each COM port
-    thread_arduino = threading.Thread(target=arduino_read_from_port, args=(serial_port_arduino, ))
-    thread_esp = threading.Thread(target=esp_read_from_port, args=(serial_port_esp, ))
 
     thread_arduino.start()
     thread_esp.start()
