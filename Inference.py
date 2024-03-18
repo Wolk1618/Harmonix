@@ -1,6 +1,7 @@
 import serial
 import threading
 import numpy as np
+from scipy.interpolate import interp1d
 
 from keras.models import load_model
 
@@ -160,14 +161,76 @@ def pre_process_data_arduino():
                     "gyro_z": gyro_z,
                 })
 
+def extract_sensor_data(data, hand):
+    tof_data = []
+    imu_data = []
+
+    for entry in data:
+        tof_entry = []
+        imu_entry = []
+
+        for sensor in entry[hand]['TOF']:
+            #if len(sensor['depth_map']) == 64: 
+            tof_entry.append(sensor['depth_map'])
+
+        for sensor in entry[hand]['IMU']:
+            imu_entry.append([sensor['accel_x'], sensor['accel_y'], sensor['accel_z'], sensor['gyro_x'], sensor['gyro_y'], sensor['gyro_z']])
+
+        if tof_entry:
+            tof_data.append(tof_entry)
+            imu_data.append(imu_entry)
+
+    return tof_data, imu_data
+
+def pad_tof_data(tof_data, imu_data):
+    num_imu_readings = len(imu_data[0])  # Assuming all IMU lists have the same length
+    num_tof_readings = len(tof_data[0])
+
+    # Handle the case when TOF readings already match or exceed IMU readings
+    if num_imu_readings <= num_tof_readings:
+        return tof_data
+
+    interpolated_tof = []
+    for tof_reading in tof_data:
+        # Interpolating each depth map in the TOF reading
+        x_original = np.linspace(0, 1, num_tof_readings)
+        x_new = np.linspace(0, 1, num_imu_readings)
+        interpolator = interp1d(x_original, tof_reading, axis=0, kind='linear', fill_value='extrapolate')
+        interpolated_reading = interpolator(x_new)
+        interpolated_tof.append(interpolated_reading)
+
+    return np.array(interpolated_tof).tolist()
+
 
 def process_data():
-    global raw_data
+    global raw_data, data_left_for_inference, data_right_for_inference
 
     while True:
         with raw_data_lock:
             #TODO Send the data to the processing function
-            print("Hey")
+            tof_data_right, imu_data_right = extract_sensor_data(raw_data, 'A')
+            tof_data_left, imu_data_left = extract_sensor_data(raw_data, 'B')
+
+            left_tof_padded = pad_tof_data(tof_data_left, imu_data_left)
+            right_tof_padded = pad_tof_data(tof_data_right, imu_data_right)
+
+            data_left_for_inference['TOF'].extend(left_tof_padded)
+            data_left_for_inference['IMU'].extend(imu_data_left)
+            data_right_for_inference['TOF'].extend(right_tof_padded)
+            data_right_for_inference['IMU'].extend(imu_data_right)
+
+
+            raw_data = {
+                'A' : {
+                    "TOF": [],
+                    "IMU": []
+                },
+                'B' : {
+                    "TOF": [],
+                    "IMU": []
+                }   
+            }
+
             
 
 def make_prediction_with_running_window():
