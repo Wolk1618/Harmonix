@@ -90,8 +90,7 @@ def esp_read_from_port(serial_port):
 
 
 def pre_process_data_esp():
-    global data_esp
-    global raw_data
+    global data_esp, raw_data
 
     while True:
 
@@ -129,8 +128,7 @@ def pre_process_data_esp():
 
 
 def pre_process_data_arduino():
-    global data_arduino
-    global raw_data
+    global data_arduino, raw_data
 
     while True:
             
@@ -210,16 +208,6 @@ def process_data():
             #TODO Send the data to the processing function
             tof_data_right, imu_data_right = extract_sensor_data(raw_data, 'A')
             tof_data_left, imu_data_left = extract_sensor_data(raw_data, 'B')
-
-            left_tof_padded = pad_tof_data(tof_data_left, imu_data_left)
-            right_tof_padded = pad_tof_data(tof_data_right, imu_data_right)
-
-            data_left_for_inference['TOF'].extend(left_tof_padded)
-            data_left_for_inference['IMU'].extend(imu_data_left)
-            data_right_for_inference['TOF'].extend(right_tof_padded)
-            data_right_for_inference['IMU'].extend(imu_data_right)
-
-
             raw_data = {
                 'A' : {
                     "TOF": [],
@@ -231,12 +219,19 @@ def process_data():
                 }   
             }
 
+        left_tof_padded = pad_tof_data(tof_data_left, imu_data_left)
+        right_tof_padded = pad_tof_data(tof_data_right, imu_data_right)
+
+        with left_inference_lock:
+            data_left_for_inference['TOF'].extend(left_tof_padded)
+            data_left_for_inference['IMU'].extend(imu_data_left)
+        with right_inference_lock:
+            data_right_for_inference['TOF'].extend(right_tof_padded)
+            data_right_for_inference['IMU'].extend(imu_data_right)
             
 
 def make_prediction_with_running_window():
-    global data_left_for_inference
-    global data_right_for_inference
-    global model
+    global data_left_for_inference, data_right_for_inference, model
 
     while True:
 
