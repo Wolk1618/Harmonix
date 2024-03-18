@@ -35,10 +35,16 @@ data_right_for_inference = {
 esp_lock = threading.Lock()
 arduino_lock = threading.Lock()
 raw_data_lock = threading.Lock()
+left_inference_lock = threading.Lock()
+right_inference_lock = threading.Lock()
 
 class Model:
     def __init__(self, model_path):
         self.model = load_model(model_path)
+
+    def format_data(self, X_tof, X_imu):
+        X = np.array([X_tof, X_imu])
+        return X.reshape(-1, 8, 8, 1)
  
     def inference(self, data):
         # Run inference on the input data - [X_test_tof, X_test_imu]
@@ -49,9 +55,9 @@ class Model:
         y_pred[confidence < 0.8] = 0
  
         return y_pred
-    
 
 model = Model(model_file)
+
 
 # Function to read from serial port and write to a JSON file
 def arduino_read_from_port(serial_port):
@@ -165,23 +171,46 @@ def process_data():
             
 
 def make_prediction_with_running_window():
-    global raw_data
+    global data_left_for_inference
+    global data_right_for_inference
+    global model
 
     while True:
-        with raw_data_lock:
-            if len(raw_data['A']['TOF']) >= running_window and len(raw_data['A']['IMU']) >= running_window:
-                # Prepare data for inference
-                X_test_tof = np.array(raw_data['A']['TOF'][-running_window:])
-                X_test_imu = np.array(raw_data['A']['IMU'][-running_window:])
-                X_test = [X_test_tof, X_test_imu]
-                X_test = np.array(X_test)
-                X_test = X_test.reshape(-1, 8, 8, 1)
-                y_pred = model.inference(X_test)
-                print(y_pred)
 
+        X_tof = None
+        X_imu = None
+        with left_inference_lock:
+            if len(data_left_for_inference['TOF']) >= running_window:
+                # Extract the data from the buffer
+                X_tof = np.array(data_left_for_inference['TOF'][:running_window])
+                X_imu = np.array(data_left_for_inference['IMU'][:running_window])
                 # Remove the oldest data from the buffer
-                raw_data['A']['TOF'] = raw_data['A']['TOF'][-running_window:]
-                raw_data['A']['IMU'] = raw_data['A']['IMU'][-running_window:]
+                data_left_for_inference['TOF'].pop(0)
+                data_left_for_inference['IMU'].pop(0)
+        
+        # Make a prediction
+        if X_tof is not None and X_imu is not None:
+            X = model.format_data(X_tof, X_imu)
+            y = model.inference(X)
+            print("Left prediction: ", y)
+                
+        X_tof = None
+        X_imu = None
+        with right_inference_lock:
+            if len(data_right_for_inference['TOF']) >= running_window:
+                # Extract the data from the buffer
+                X_tof = np.array(data_right_for_inference['TOF'][:running_window])
+                X_imu = np.array(data_right_for_inference['IMU'][:running_window])
+                # Remove the oldest data from the buffer
+                data_right_for_inference['TOF'].pop(0)
+                data_right_for_inference['IMU'].pop(0)
+
+        # Make prediction
+        if X_tof is not None and X_imu is not None:
+            X = model.format_data(X_tof, X_imu)
+            y = model.inference(X)
+            print("Right prediction: ", y)
+ 
 
 def main():
 
@@ -194,6 +223,7 @@ def main():
     thread_pre_process_esp = threading.Thread(target=pre_process_data_esp)
     thread_pre_process_arduino = threading.Thread(target=pre_process_data_arduino)
     thread_process = threading.Thread(target=process_data)
+    thread_inference = threading.Thread(target=make_prediction_with_running_window)
 
     print("\nHarmonix started !\n")
     
@@ -202,6 +232,7 @@ def main():
     thread_pre_process_esp.start()
     thread_pre_process_arduino.start()
     thread_process.start()
+    thread_inference.start()
 
     while True:
         user_input = input("Press Q to quit: ")
@@ -213,6 +244,7 @@ def main():
     thread_pre_process_esp.join()
     thread_pre_process_arduino.join()
     thread_process.join()
+    thread_inference.join()
 
 
 if __name__ == "__main__":
