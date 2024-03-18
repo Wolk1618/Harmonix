@@ -11,8 +11,12 @@
 #include "esp_system.h"
 #include "driver/gpio.h" // Make sure to include the GPIO driver for manipulating pins
 
-#define TXD_PIN (20)
-#define RXD_PIN (21)
+// Define the GPIO pins
+#define GPIO_PIN_4 4
+#define GPIO_PIN_6 6
+#define GPIO_PIN_7 7
+#define GPIO_PIN_9 9
+
 #define NEW_I2C_ADDRESS ((uint16_t)0x30 << 1) // Shift left to account for 7-bit address format
 
 void delay_500ms() {
@@ -20,40 +24,24 @@ void delay_500ms() {
     vTaskDelay(xDelay); // Delay for 500ms (in ticks)
 }
 
-void init_uart() {
-    const uart_config_t uart_config = {
-        .baud_rate = 19200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_APB,
-    };
-    // Install UART driver, and get the queue.
-    uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0);
-    // Configure UART parameters
-    uart_param_config(UART_NUM_1, &uart_config);
-    uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-}
 
 void app_main(void) {
 
-    init_uart();
     // Define the i2c bus configuration
     i2c_port_t i2c_port = I2C_NUM_1;
     i2c_config_t i2c_config = {
         .mode = I2C_MODE_MASTER,
-        .sda_io_num = 6,
-        .scl_io_num = 7,
+        .sda_io_num = GPIO_PIN_6,
+        .scl_io_num = GPIO_PIN_7,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
         .master.clk_speed = VL53L5CX_MAX_CLK_SPEED,
     };
     
-    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_OUTPUT);
-    gpio_set_direction(GPIO_NUM_1, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_0, 1);
-    gpio_set_level(GPIO_NUM_1, 1);
+    gpio_set_direction(GPIO_PIN_4, GPIO_MODE_OUTPUT); // CHANGE FOR WHEN INITIALISING, USED TO BE GPIO_NUM_0 AND
+    gpio_set_direction(GPIO_PIN_9, GPIO_MODE_OUTPUT); //                                          GPIO_NUM_1
+    gpio_set_level(GPIO_PIN_4, 1);
+    gpio_set_level(GPIO_PIN_9, 1);
 
     delay_500ms();
     
@@ -64,7 +52,6 @@ void app_main(void) {
     uint8_t 				status, loop, isAlive, isReady, i, frequency_hz;
     VL53L5CX_Configuration Dev, Dev2; // Sensor configuration
     VL53L5CX_ResultsData 	Results, Results2;
-
 
     // Initialize the first sensor (Dev)
     Dev.platform.address = VL53L5CX_DEFAULT_I2C_ADDRESS;
@@ -88,12 +75,12 @@ void app_main(void) {
     Dev2.platform.port = i2c_port;
 
     // Disable other device
-    gpio_set_level(GPIO_NUM_0, 0);
+    gpio_set_level(GPIO_PIN_4, 0);
     // Change the I2C address of the second sensor
     vl53l5cx_set_i2c_address(&Dev2, NEW_I2C_ADDRESS);
     delay_500ms();
     // Re-enable other device
-    gpio_set_level(GPIO_NUM_0, 1);
+    gpio_set_level(GPIO_PIN_4, 1);
     
     // Initialize the second sensor with the new address
     status = vl53l5cx_init(&Dev2);
@@ -111,8 +98,8 @@ void app_main(void) {
 
     vl53l5cx_set_resolution(&Dev,VL53L5CX_RESOLUTION_8X8);
     vl53l5cx_set_resolution(&Dev2,VL53L5CX_RESOLUTION_8X8);
-    vl53l5cx_set_ranging_frequency_hz(&Dev, 35);
-    vl53l5cx_set_ranging_frequency_hz(&Dev2, 35);
+    vl53l5cx_set_ranging_frequency_hz(&Dev, 52);
+    vl53l5cx_set_ranging_frequency_hz(&Dev2, 52);
     printf("Both VL53L5CX ULD ready! Sensor1: %d Sensor2: %d (Version: %s)\n",Dev.platform.address,Dev2.platform.address, VL53L5CX_API_REVISION);
     
     status = vl53l5cx_get_ranging_frequency_hz(&Dev, &frequency_hz);
@@ -133,58 +120,44 @@ void app_main(void) {
         return;
     }
 
-    loop = 0;
-    char uart_buffer[1024]; // Adjusted buffer size to hold all 64 measurements plus formatting
+    while(1) {
+        // Fetching and sending data for the first sensor
+        status = vl53l5cx_check_data_ready(&Dev, &isReady);
+        if(isReady) {
+            vl53l5cx_get_ranging_data(&Dev, &Results);
 
-    while(loop < 100) {
-    // Fetching and sending data for the first sensor
-    status = vl53l5cx_check_data_ready(&Dev, &isReady);
-    if(isReady) {
-        vl53l5cx_get_ranging_data(&Dev, &Results);
+            printf("A"); // Start the batch with a sensor identifier for the first sensor
 
-        int buf_index = 0; // Reset buffer index for the batch
-        // Start the batch with a sensor identifier
-        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "A");
+            for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
+                printf("%d;", Results.distance_mm[i]); // Print each measurement to the serial monitor
+            }
 
-        for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
-            // Append measurement to the buffer
-            buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "%d;", Results.distance_mm[i]);
+            printf("Z;\n"); // Append the stop character "Z" and move to a new line
+
+            vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
         }
-        // Append the stop character "Z" to the batch
-        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "Z;");
 
-        // Send the entire batch
-        uart_write_bytes(UART_NUM_1, uart_buffer, buf_index);
-        vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
-    }
+        // Repeat the process for the second sensor
+        status = vl53l5cx_check_data_ready(&Dev2, &isReady);
+        if(isReady) {
+            vl53l5cx_get_ranging_data(&Dev2, &Results2);
 
-    // Repeat the process for the second sensor
-    status = vl53l5cx_check_data_ready(&Dev2, &isReady);
-    if(isReady) {
-        vl53l5cx_get_ranging_data(&Dev2, &Results2);
+            printf("B"); // Start the batch with a sensor identifier for the second sensor
 
-        int buf_index = 0; // Reset buffer index for the batch
-        // Start the batch with a sensor identifier for the second sensor
-        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "B");
+            for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
+                printf("%d;", Results2.distance_mm[i]); // Print each measurement to the serial monitor
+            }
 
-        for(i = 0; i < 64; i++) { // Directly iterate through all 64 measurements
-            // Append measurement to the buffer
-            buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "%d;", Results2.distance_mm[i]);
+            printf("Z;\n"); // Append the stop character "Z" and move to a new line
+
+            vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
         }
-        // Append the stop character "Z" to the batch
-        buf_index += snprintf(uart_buffer + buf_index, sizeof(uart_buffer) - buf_index, "Z;");
 
-        // Send the entire batch
-        uart_write_bytes(UART_NUM_1, uart_buffer, buf_index);
-        vTaskDelay(pdMS_TO_TICKS(70)); // Delay after sending the batch
+        // Delay before fetching new data to avoid too high polling
+        WaitMs(&(Dev.platform), 30);
+        WaitMs(&(Dev2.platform), 30);
+
     }
-
-    // Delay before fetching new data to avoid too high polling
-    WaitMs(&(Dev.platform), 70);
-    WaitMs(&(Dev2.platform), 70);
-
-    loop++;
-}
 
 
     status = vl53l5cx_stop_ranging(&Dev);
