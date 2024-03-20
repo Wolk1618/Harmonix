@@ -57,7 +57,6 @@ def arduino_read_from_port(serial_port, data_arduino, arduino_lock):
 # Function to read data from ESP
 def esp_read_from_port(serial_port, data_esp, esp_lock):    
     serial_port.flushInput()
-    i = 0
 
     while True:
         if serial_port.in_waiting:
@@ -66,13 +65,12 @@ def esp_read_from_port(serial_port, data_esp, esp_lock):
                 data = serial_port.readline().decode('utf-8').rstrip()
             
             with esp_lock:
-                print(i)
-                i = i + 1
                 data_esp.put(data)
 
 
 def process_esp_raw_data(data_esp, esp_lock, esp_right, esp_left, esp_right_lock, esp_left_lock):
 
+    first = 1
     while True:
 
         data_bite = None
@@ -80,7 +78,7 @@ def process_esp_raw_data(data_esp, esp_lock, esp_right, esp_left, esp_right_lock
             if not data_esp.empty():
                 data_bite = data_esp.get()
 
-        if data_bite:
+        if data_bite:            
             target = data_bite[0]
             clean_data = data_bite[1:-2]
             containsA = clean_data.count('A')
@@ -110,11 +108,9 @@ def process_esp_raw_data(data_esp, esp_lock, esp_right, esp_left, esp_right_lock
                     with esp_left_lock:
                         esp_left.put(array)
                         #print('ESP left')
-                
 
 
 def process_arduino_raw_data(data_arduino, arduino_lock, arduino_right, arduino_left, arduino_right_lock, arduino_left_lock):
-
     while True:
             
         data_bite = None
@@ -144,150 +140,113 @@ def process_arduino_raw_data(data_arduino, arduino_lock, arduino_right, arduino_
 
 
 def pad_tof_data(tof_data, imu_data):
-    num_imu_readings = len(imu_data[0])  # Assuming all IMU lists have the same length
-    num_tof_readings = len(tof_data[0])
+    num_imu_readings = len(imu_data)  # Assuming all IMU lists have the same length
+    num_tof_readings = len(tof_data)
+    #print(num_imu_readings)
+    #print(num_tof_readings)
 
     # Handle the case when TOF readings already match or exceed IMU readings
     if num_imu_readings <= num_tof_readings:
         return tof_data
-
+    
     interpolated_tof = []
-    for tof_reading in tof_data:
-        # Interpolating each depth map in the TOF reading
-        x_original = np.linspace(0, 1, num_tof_readings)
-        x_new = np.linspace(0, 1, num_imu_readings)
-        interpolator = interp1d(x_original, tof_reading, axis=0, kind='linear', fill_value='extrapolate')
-        interpolated_reading = interpolator(x_new)
-        interpolated_tof.append(interpolated_reading)
+    interpolated_tof.append(tof_data[0])
+    for _ in range(num_imu_readings - 1) :
+        interpolated_tof.append(tof_data[-1])
+    
+    '''
+    if len(tof_data) == 1:
+        
+    else:
+        for tof_reading in tof_data:
+            # Interpolating each depth map in the TOF reading
+            x = np.arange(0, 8)
+            f = interp1d(x, tof_reading, kind='linear')
+            xnew = np.linspace(0, 7, num_imu_readings)
+            interpolated_tof.append(f(xnew))
+    '''
 
     return np.array(interpolated_tof).tolist()
 
 
-def process_data(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock, esp_right, esp_left, esp_right_lock, esp_left_lock, final_esp_right, final_esp_left, final_arduino_right, final_arduino_left, final_arduino_right_lock, final_arduino_left_lock, final_esp_right_lock, final_esp_left_lock):
-
-    tof_data_left = []
-    imu_data_left = []
-    tof_data_right = []
-    imu_data_right = []
-    
-    while True:
-
-        time.sleep(0.5)
-
-        with esp_right_lock:
-            #print(esp_right.qsize())
-            while not esp_right.empty():
-                tof_data_right.append(esp_right.get())
-        
-        with esp_left_lock:
-            #print(esp_left.qsize())
-            while not esp_left.empty():
-                tof_data_left.append(esp_left.get())
-
-        with arduino_right_lock:
-            #print(arduino_right.qsize())
-            while not arduino_right.empty():
-                imu_data_right.append(arduino_right.get())
-
-        with arduino_left_lock:
-            #print(arduino_left.qsize())
-            while not arduino_left.empty():
-                imu_data_left.append(arduino_left.get())
-
-
-        if len(tof_data_left) != 0 and len(imu_data_left) != 0:
-            #print("Left")
-            left_tof_padded = pad_tof_data(tof_data_left, imu_data_left)
-
-            with final_esp_left_lock:
-                for data in left_tof_padded :
-                    final_esp_left.put(data)
-
-            with final_arduino_left_lock:
-                for data in imu_data_left :
-                    final_arduino_left.put(data)
-
-            tof_data_left = []
-            imu_data_left = []
-
-
-        if len(tof_data_right) != 0 and len(imu_data_right) != 0:
-            #print("Right")
-            right_tof_padded = pad_tof_data(tof_data_right, imu_data_right)
-
-            with final_esp_right_lock:
-                for data in right_tof_padded :
-                    final_esp_right.put(data)
-
-            with final_arduino_right_lock:
-                for data in imu_data_right :
-                    final_arduino_right.put(data)
-
-            tof_data_right = []
-            imu_data_right = []
-
-        
-            
-
-def apply_running_window(final_esp_right, final_esp_left, final_arduino_right, final_arduino_left, final_arduino_right_lock, final_arduino_left_lock, final_esp_right_lock, final_esp_left_lock):
+def process_data(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock, esp_right, esp_left, esp_right_lock, esp_left_lock):
     global running_window
     tof_data_left = []
     imu_data_left = []
     tof_data_right = []
     imu_data_right = []
-
+    inference_tof_data_left = []
+    inference_imu_data_left = []
+    inference_tof_data_right = []
+    inference_imu_data_right = []
+    flush = 3
     model = Model(model_file)
-
+ 
     while True:
 
-        with final_esp_right_lock:
-            if not final_esp_right.empty():
-                #print("hey")
-                tof_data_right.append(final_esp_right.get())
+        #time.sleep(0.01)
 
-        with final_esp_left_lock:
-            if not final_esp_left.empty():
-                tof_data_left.append(final_esp_left.get())
+        with esp_right_lock:
+            while not esp_right.empty():
+                tof_data_right.append(esp_right.get())
+        
+        with esp_left_lock:
+            while not esp_left.empty():
+                tof_data_left.append(esp_left.get())
 
-        with final_arduino_right_lock:
-            if not final_arduino_right.empty():
-                imu_data_right.append(final_arduino_right.get())
+        with arduino_right_lock:
+            while not arduino_right.empty():
+                imu_data_right.append(arduino_right.get())
 
-        with final_arduino_left_lock:
-            if not final_arduino_left.empty():
-                imu_data_left.append(final_arduino_left.get())
+        with arduino_left_lock:
+            while not arduino_left.empty():
+                imu_data_left.append(arduino_left.get())
 
-        #print(len(tof_data_left))
-        if len(tof_data_left) >= running_window:
+
+        if len(tof_data_left) != 0 and len(imu_data_left) != 0:
+            left_tof_padded = pad_tof_data(tof_data_left, imu_data_left)
+            inference_tof_data_left.extend(left_tof_padded)
+            inference_imu_data_left.extend(imu_data_left)
+            tof_data_left = []
+            imu_data_left = []
+
+        if len(tof_data_right) != 0 and len(imu_data_right) != 0:
+            right_tof_padded = pad_tof_data(tof_data_right, imu_data_right)
+            inference_tof_data_right.extend(right_tof_padded)
+            inference_imu_data_right.extend(imu_data_right)
+            tof_data_right = []
+            imu_data_right = []
+
+        if len(inference_tof_data_left) >= running_window:
             # Extract the data from the buffer
-            X_tof = np.array(tof_data_left[:running_window])
-            X_imu = np.array(imu_data_left[:running_window])
-            tof_data_left.pop(0)
-            tof_data_left.pop(0)
-            imu_data_left.pop(0)
-            imu_data_left.pop(0)
+            X_tof = np.array(inference_tof_data_left[:running_window])
+            X_imu = np.array(inference_imu_data_left[:running_window])
+            for _ in range(flush) :
+                inference_tof_data_left.pop(0)
+            for _ in range(flush) :
+                inference_imu_data_left.pop(0)
             X = model.format_data(X_tof, X_imu)
             y = model.inference(X)[0]
             if y != 0:
                 print(f"Gesture left : {y}")
-                tof_data_left = []
-                imu_data_left = []
+                inference_tof_data_left = []
+                inference_imu_data_left = []
             
                 
-        if len(tof_data_right) >= running_window:
+        if len(inference_tof_data_right) >= running_window:
             # Extract the data from the buffer
-            X_tof = np.array(tof_data_right[:running_window])
-            X_imu = np.array(imu_data_right[:running_window])
-            tof_data_right.pop(0)
-            tof_data_right.pop(0)
-            imu_data_right.pop(0)
-            imu_data_right.pop(0)
+            X_tof = np.array(inference_tof_data_right[:running_window])
+            X_imu = np.array(inference_imu_data_right[:running_window])
+            for _ in range(flush) :
+                inference_tof_data_right.pop(0)
+            for _ in range(flush) :
+                inference_imu_data_right.pop(0)
             X = model.format_data(X_tof, X_imu)
             y = model.inference(X)[0]
             if y != 0:
                 print(f"Gesture right : {y}")
-                tof_data_right = []
-                imu_data_right = []
+                inference_tof_data_right = []
+                inference_imu_data_right = []
 
 
 def main():
@@ -300,10 +259,6 @@ def main():
     esp_left = multiprocessing.Queue()
     arduino_right = multiprocessing.Queue()
     arduino_left = multiprocessing.Queue()
-    final_esp_right = multiprocessing.Queue()
-    final_esp_left = multiprocessing.Queue()
-    final_arduino_right = multiprocessing.Queue()
-    final_arduino_left = multiprocessing.Queue()
 
     esp_lock = multiprocessing.Lock()
     arduino_lock = multiprocessing.Lock()
@@ -311,10 +266,6 @@ def main():
     esp_left_lock = multiprocessing.Lock()
     arduino_right_lock = multiprocessing.Lock()
     arduino_left_lock = multiprocessing.Lock()
-    final_arduino_right_lock = multiprocessing.Lock()
-    final_arduino_left_lock = multiprocessing.Lock()
-    final_esp_right_lock = multiprocessing.Lock()
-    final_esp_left_lock = multiprocessing.Lock()
 
     serial_port_arduino = serial.Serial((arduino_com), 9600, timeout=1)
     serial_port_esp = serial.Serial((esp_com), 115200, timeout=1)
@@ -324,8 +275,7 @@ def main():
     processes.append(multiprocessing.Process(target=esp_read_from_port, args=(serial_port_esp, data_esp, esp_lock)))
     processes.append(multiprocessing.Process(target=process_esp_raw_data, args=(data_esp, esp_lock, esp_right, esp_left, esp_right_lock, esp_left_lock)))
     processes.append(multiprocessing.Process(target=process_arduino_raw_data, args=(data_arduino, arduino_lock, arduino_right, arduino_left, arduino_right_lock, arduino_left_lock)))
-    processes.append(multiprocessing.Process(target=process_data, args=(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock, esp_right, esp_left, esp_right_lock, esp_left_lock, final_esp_right, final_esp_left, final_arduino_right, final_arduino_left, final_arduino_right_lock, final_arduino_left_lock, final_esp_right_lock, final_esp_left_lock)))
-    processes.append(multiprocessing.Process(target=apply_running_window, args=(final_esp_right, final_esp_left, final_arduino_right, final_arduino_left, final_arduino_right_lock, final_arduino_left_lock, final_esp_right_lock, final_esp_left_lock)))
+    processes.append(multiprocessing.Process(target=process_data, args=(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock, esp_right, esp_left, esp_right_lock, esp_left_lock)))
 
     print("\nHarmonix started !\n")
 
