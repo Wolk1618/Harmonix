@@ -4,7 +4,7 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
-
+from keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, concatenate
 from tensorflow.keras.models import Model
@@ -13,12 +13,12 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.layers import Dense, Dropout, Activation, BatchNormalization
 from tensorflow.keras.regularizers import l2
 
-
+from keras.models import load_model
 
 def load_json_data_and_labels(file_path):
     with open(file_path, 'r') as f:
         data = json.load(f)
-    
+
     labels = []
     sensor_data = []
     for entry in data:
@@ -46,7 +46,9 @@ def extract_sensor_data(data, hand):
             tof_data.append(tof_entry)
             imu_data.append(imu_entry)
 
-    return np.array(tof_data), np.array(imu_data)
+    arr_tof = np.array(tof_data, dtype = 'object')
+    arr_imu = np.array(imu_data, dtype = 'object')
+    return arr_tof, arr_imu
 
 def preprocess_tof_data(tof_data, new_shape):
     # Find the minimum length of depth maps among all entries
@@ -93,22 +95,22 @@ def preprocess_imu_data(imu_data):
 def pad_tof_data(tof_data, imu_data):
     padded_tof_data = []
     for i in range(len(tof_data)):
-        # Find the number of frames to pad
-        num_frames_to_pad = len(imu_data[i]) - len(tof_data[i])
+        # Number of points in the current TOF and IMU data
+        num_tof_points = len(tof_data[i])
+        num_imu_points = len(imu_data[i])
 
-        # Interpolate the depth maps
-        interpolated_depth_maps = []
-        for j in range(len(tof_data[i][0])):
-            depth_map = tof_data[i][:, j]
-            time = np.linspace(0, 1, len(depth_map))
-            interpolator = interp1d(time, depth_map, kind='linear', axis=0, fill_value='extrapolate')
-            new_time = np.linspace(0, 1, len(imu_data[i]))
-            interpolated_depth_map = interpolator(new_time)
-            interpolated_depth_maps.append(interpolated_depth_map)
+        # Handle the case when TOF readings already match or exceed IMU readings
+        if num_imu_points <= num_tof_points:
+            padded_tof_data.append(tof_data[i])
+            continue
 
-        interpolated_depth_maps = np.array(interpolated_depth_maps)
-        interpolated_depth_maps = np.transpose(interpolated_depth_maps, (1, 0, 2))
-        padded_tof_data.append(interpolated_depth_maps)
+        # Interpolating the entire TOF reading
+        x_original = np.linspace(0, 1, num_tof_points)
+        x_new = np.linspace(0, 1, num_imu_points)
+        interpolator = interp1d(x_original, tof_data[i], axis=0, kind='linear', fill_value='extrapolate')
+        interpolated_tof = interpolator(x_new)
+
+        padded_tof_data.append(interpolated_tof)
 
     return np.array(padded_tof_data)
 
@@ -205,19 +207,23 @@ def plot_history(history, metric='loss'):
 
 
 def main():
-    json_file_path_ally = 'ally.json'
-    data1, labels1 = load_json_data_and_labels(json_file_path_ally)
-    json_file_path_thomas = 'thomas.json'
-    data2, labels2 = load_json_data_and_labels(json_file_path_thomas)
+    ally_file_path = 'ally.json'
+    thomas_file_path = 'thomas.json'
+    ana_file_path = 'ana.json'
+    seb_file_path = 'seb.json'
+    data1, labels1 = load_json_data_and_labels(ally_file_path)
+    data2, labels2 = load_json_data_and_labels(thomas_file_path)
+    data3, labels3 = load_json_data_and_labels(ana_file_path)
+    data4, labels4 = load_json_data_and_labels(seb_file_path)
 
-    data = data1 + data2
-    labels = np.array(labels1 + labels2)
+    data = data1 + data2 + data3 + data4
+    labels = np.array(labels1 + labels2 + labels3 + labels4)
 
     # Extract and preprocess the data for each hand
     left_tof, right_tof, left_imu, right_imu = return_preprocessed_data(data)
 
-    #print(left_tof.shape,left_imu.shape)
-    #print(left_imu.shape,right_imu.shape)
+    print(left_tof.shape,left_imu.shape)
+    print(left_imu.shape,right_imu.shape)
 
 
     # Split the data
@@ -227,58 +233,40 @@ def main():
     X_train_left_tof, X_train_right_tof, X_train_left_imu, X_train_right_imu, y_train = train_data
     X_test_left_tof, X_test_right_tof, X_test_left_imu, X_test_right_imu, y_test = test_data
 
+    # Concatenate TOF data
+    X_train_tof = np.concatenate((X_train_left_tof, X_train_right_tof), axis=0)
+    X_test_tof = np.concatenate((X_test_left_tof, X_test_right_tof), axis=0)
 
-    # --------- Data augmentation setting ---------
+    # Concatenate IMU data
+    X_train_imu = np.concatenate((X_train_left_imu, X_train_right_imu), axis=0)
+    X_test_imu = np.concatenate((X_test_left_imu, X_test_right_imu), axis=0)
 
-    # You can modify the data_augmentation variable below to add your
-    # data augmentation pipeline.
-    # By default we do not apply any augmentation (RandomZoom(0) is equivalent
-    # to not performing any augmentation)
-    '''
-    data_augmentation = keras.Sequential(
-        [
-            preprocessing.RandomZoom(0)
-        ]
-    )
-    model.add(data_augmentation)
-    '''
-
+    # Concatenate labels
+    y_train = np.concatenate((y_train, y_train), axis = 0)
+    y_test = np.concatenate((y_test, y_test), axis = 0)
 
     # --------- Model definition ---------
 
     # We will use glorot_uniform as a initialization by default
+    '''
     initialization = 'glorot_uniform'
     num_time_steps = X_train_left_tof.shape[3]
 
-    # Input for the first TOF features (8x8 input features)
+    # Input for the TOF features (8x8 input features)
     input1 = Input(shape=(8, 8, num_time_steps))
-    conv1 = Conv2D(32, kernel_size=3, activation='relu', padding='same', kernel_initializer=initialization,kernel_regularizer=l2(0.01))(input1)
+    conv1 = Conv2D(32, kernel_size=3, activation='relu', padding='same', kernel_initializer=initialization, kernel_regularizer=l2(0.01))(input1)
     dropout1 = Dropout(0.5)(conv1)
     pool1 = MaxPooling2D(pool_size=2, strides=(2, 2), padding='same')(dropout1)
     flat1 = Flatten()(pool1)
     dense1 = Dense(32, kernel_initializer=initialization, activation='relu')(flat1)
 
-    # Input for the second TOF features (8x8 input features)
-    input2 = Input(shape=(8, 8, num_time_steps))
-    conv2 = Conv2D(32, kernel_size=3, activation='relu', padding='same', kernel_initializer=initialization,kernel_regularizer=l2(0.01))(input2)
-    dropout2 = Dropout(0.5)(conv2)
-    pool2 = MaxPooling2D(pool_size=2, strides=(2, 2), padding='same')(dropout2)
-    flat2 = Flatten()(pool2)
-    dense2 = Dense(32, kernel_initializer=initialization, activation='relu')(flat2)
-
     # Input for the first IMU (6 input features)
     input3 = Input(shape=(6, num_time_steps))
     flat3 = Flatten()(input3)
-    dense3 = Dense(32, kernel_initializer=initialization,kernel_regularizer=l2(0.01), activation='relu')(flat3)
-    
+    dense3 = Dense(32, kernel_initializer=initialization, kernel_regularizer=l2(0.01), activation='relu')(flat3)
 
-    # Input for the second IMU (6 input features)
-    input4 = Input(shape=(6, num_time_steps))
-    flat4 = Flatten()(input4)
-    dense4 = Dense(32, kernel_initializer=initialization,kernel_regularizer=l2(0.01), activation='relu')(flat4)
-    
-    # Concatenate the outputs from both sets of layers
-    merged = concatenate([dense1, dense2, dense3, dense4])
+    # Concatenate the outputs from the TOF and IMU layers
+    merged = concatenate([dense1, dense3])
 
     # Combined linear layer for merging the outputs
     dense_combined = Dense(256, kernel_initializer=initialization, activation='relu')(merged)
@@ -292,15 +280,17 @@ def main():
     output = Dense(6, kernel_initializer=initialization, activation='softmax')(dense7)
 
     # --------- Model creation and definition ---------
+    # Use early stopping
+    es = EarlyStopping(monitor='val_accuracy', patience = 20, verbose = 0)
 
     # Create the model
-    model = Model(inputs=[input1, input2, input3, input4], outputs=output)
+    model = Model(inputs=[input1, input3], outputs=output)
 
     # By default use Adam with lr=3e-4. Change it to SGD when asked to
     opt = Adam(lr=3e-4)
     model.compile(loss='categorical_crossentropy',
-                optimizer=opt,
-                metrics=['accuracy'])
+                  optimizer=opt,
+                  metrics=['accuracy'])
 
     # Display the model summary
     model.summary()
@@ -308,8 +298,10 @@ def main():
     # --------- Training model ---------
 
     # Use 40 epochs as default value to plot your curves
-    history = model.fit([X_train_left_tof, X_train_right_tof, X_train_left_imu, X_train_right_imu], y_train, epochs=40, validation_data=([X_test_left_tof, X_test_right_tof, X_test_left_imu, X_test_right_imu], y_test))
+    history = model.fit([X_train_tof, X_train_imu], y_train, epochs=200, validation_data=([X_test_tof, X_test_imu], y_test), callbacks=[es])
+
     
+
     # Plot the training and validation curves
     plot_history(history, metric='accuracy')
     plot_history(history, metric='loss')
@@ -319,12 +311,31 @@ def main():
     val_accuracy = history.history['val_accuracy'][-1]
     print(f'Training Accuracy: {train_accuracy:.4f}')
     print(f'Validation Accuracy: {val_accuracy:.4f}')
+    '''
 
+    model = load_model('final_model.h5')
+    print(X_test_tof.shape)
+    print(X_test_imu.shape)
     # Evaluate the model on the test data
-    y_pred = model.predict([X_test_left_tof, X_test_right_tof, X_test_left_imu, X_test_right_imu])
-    y_pred = np.argmax(y_pred, axis=1)
+    data = [X_test_tof[0], X_test_imu[0]]
+    predictions = model.predict([X_test_tof, X_test_imu])
+    y_pred = np.argmax(predictions, axis=1)
     y_test = np.argmax(y_test, axis=1)
+    confidence = np.max(predictions, axis=1)
+
+    y_pred[confidence < 0.8] = 0
+
     plot_confusion_matrix(y_test, y_pred)
+
+    # Plot a histogram of how confident the model is on each prediction
+
+    plt.figure(figsize=(8, 6))
+    plt.hist(confidence, bins=10, edgecolor='black')
+    plt.title('Distribution of Model Confidence')
+    plt.xlabel('Confidence')
+    plt.ylabel('Frequency')
+    plt.grid(axis='y', alpha=0.75)
+    plt.show()
 
 
 
