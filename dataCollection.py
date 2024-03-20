@@ -4,9 +4,9 @@ import json
 import time
 import datetime
 
-arduino_com = '/dev/ttyACM0'
-esp_com = '/dev/ttyUSB0'
-output_file = "thomas.json" 
+arduino_com = '/dev/ttyACM3'
+esp_com = '/dev/ttyUSB3'
+output_file = "test.json" 
 run_for_seconds = 2  # Duration to run the threads
 label = 5
 keep_running = True
