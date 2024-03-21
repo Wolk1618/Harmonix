@@ -3,3 +3,5 @@ numpy
 tensorflow
 np_utils
 serial
+multiprocessing
+mido
