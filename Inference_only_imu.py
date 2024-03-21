@@ -2,15 +2,15 @@ import serial
 import multiprocessing
 import time
 import numpy as np
-import mido
-from mido import Message
+import socket
 
 from tensorflow.keras.models import load_model
-from scipy.interpolate import interp1d
+#from scipy.interpolate import interp1d
 
 arduino_com = '/dev/ttyACM3'
 running_window = 18  # Size of the running window
-
+host = '172.20.112.1'  # The server's hostname or IP address
+port = 12345  # The port used by the server
 model_file = 'model_imu.h5'
 vol_current_value = {
     1: 0,
@@ -42,63 +42,11 @@ class Model:
         y_pred[confidence < 0.8] = 0
         return y_pred
     
-def change_volume(port_index, channel, controller, change_by_percent, change_type):
-    available_ports = mido.get_output_names()
-    if port_index >= len(available_ports):
-        print("Invalid port index. Exiting.")
-        return
-
-    port_name = available_ports[port_index]
-    with mido.open_output(port_name) as outport:
-        change_value = int((max_value * change_by_percent) / 100)
-        if change_type == 'U':
-            new_value = min(max_value, vol_current_value[channel] + change_value)
-        elif change_type == 'D':
-            new_value = max(0, vol_current_value[channel] - change_value)
-        else:
-            print("Invalid change type. Exiting.")
-            return
-
-        cc_message = Message('control_change', channel=channel, control=controller, value=new_value)
-        outport.send(cc_message)
-        print(f"Sent volume change to {port_name}: {cc_message}")
-
-        vol_current_value[channel] = new_value
-
-def change_fader(port_index, channel, controller, change_by_constant, change_type):
-    available_ports = mido.get_output_names()
-    if port_index >= len(available_ports):
-        print("Invalid port index. Exiting.")
-        return
-
-    port_name = available_ports[port_index]
-    with mido.open_output(port_name) as outport:
-        current_value = fader_current_value[channel]
-        if change_type == 'U':
-            new_value = min(max_value, current_value + change_by_constant)
-        elif change_type == 'D':
-            new_value = max(0, current_value - change_by_constant)
-        else:
-            print("Invalid change type. Exiting.")
-            return
-
-        cc_message = Message('control_change', channel=channel, control=controller, value=new_value)
-        outport.send(cc_message)
-        print(f"Sent fader change to {port_name}: {cc_message}")
-
-        fader_current_value[channel] = new_value
-
-def loop(port_index, channel, controller, valuez):
-    available_ports = mido.get_output_names()
-    if port_index >= len(available_ports):
-        print("Invalid port index. Exiting.")
-        return
-
-    port_name = available_ports[port_index]
-    with mido.open_output(port_name) as outport:
-        cc_message = Message('control_change', channel=channel, control=controller, value=valuez)
-        outport.send(cc_message)
-        print(f"Sent Looper change to {port_name}: {cc_message}")
+def send_data(data):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((host, port))
+        s.sendall(data.encode())
+        print(f"Sent data: {data}")
 
 
 # Function to read from serial port and write to a JSON file
@@ -112,7 +60,6 @@ def arduino_read_from_port(serial_port, data_arduino, arduino_lock):
 
             with arduino_lock:
                 data_arduino.put(data)
-
 
 
 def process_arduino_raw_data(data_arduino, arduino_lock, arduino_right, arduino_left, arduino_right_lock, arduino_left_lock):
@@ -145,7 +92,7 @@ def process_arduino_raw_data(data_arduino, arduino_lock, arduino_right, arduino_
 
 
 
-def make_inference(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock, command, command_lock):
+def make_inference(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock):
     global running_window
     imu_data_left = []
     imu_data_right = []
@@ -180,8 +127,7 @@ def make_inference(arduino_right, arduino_left, arduino_right_lock, arduino_left
                         imu_data_left.pop(0)
                     spotted_left = 1
                 else :
-                    with command_lock:
-                        command.put([0, y])
+                    send_data(str(0) + str(y))
                     spotted_left = 0
                     imu_data_left = []
             
@@ -199,44 +145,10 @@ def make_inference(arduino_right, arduino_left, arduino_right_lock, arduino_left
                         imu_data_right.pop(0)
                     spotted_right = 1
                 else :
-                    with command_lock:
-                        command.put([1, y])
+                    send_data(str(1) + str(y))
                     spotted_right = 0
                     imu_data_right = []
-
-def traktor(command, command_lock):
-    
-    MIDIport = 1
-    change_by_percent_volume = 20
-    change_by_const = 10
-
-    while True:
-        
-        command_pack = None
-        with command_lock:
-            if not command.empty():
-                command_pack = command.get()
-
-        if command_pack:
-
-            channel = command_pack[0] + 1
-            userInp = command_pack[1]
-
-            if userInp == '1':  # Vol U
-                controller = 20  # Assuming 20 for volume control
-                change_volume(MIDIport, channel, controller, change_by_percent_volume, 'U')
-            elif userInp == '2':  # Vol D
-                controller = 20  # Assuming 20 for volume control
-                change_volume(MIDIport, channel, controller, change_by_percent_volume, 'D')
-            elif userInp == '3':  # Fader U
-                controller = 21  # Assuming 21 for fader control
-                change_fader(MIDIport, channel, controller, change_by_const, 'U')
-            elif userInp == '4':  # Fader D
-                controller = 21  # Assuming 21 for fader control
-                change_fader(MIDIport, channel, controller, change_by_const, 'D')
-            elif userInp == '5':  # Loop
-                controller = 22
-                loop(MIDIport, channel, controller, 100)
+   
 
 
 def main():
@@ -246,20 +158,17 @@ def main():
     data_arduino = multiprocessing.Queue()
     arduino_right = multiprocessing.Queue()
     arduino_left = multiprocessing.Queue()
-    command = multiprocessing.Queue()
 
     arduino_lock = multiprocessing.Lock()
     arduino_right_lock = multiprocessing.Lock()
     arduino_left_lock = multiprocessing.Lock()
-    command_lock = multiprocessing.Lock()
 
     serial_port_arduino = serial.Serial((arduino_com), 9600, timeout=1)
 
     # Create processes for each micro function
     processes.append(multiprocessing.Process(target=arduino_read_from_port, args=(serial_port_arduino, data_arduino, arduino_lock)))
     processes.append(multiprocessing.Process(target=process_arduino_raw_data, args=(data_arduino, arduino_lock, arduino_right, arduino_left, arduino_right_lock, arduino_left_lock)))
-    processes.append(multiprocessing.Process(target=make_inference, args=(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock, command, command_lock)))
-    processes.append(multiprocessing.Process(target=traktor, args=(command, command_lock)))
+    processes.append(multiprocessing.Process(target=make_inference, args=(arduino_right, arduino_left, arduino_right_lock, arduino_left_lock)))
 
     print("\nHarmonix started !\n")
 
